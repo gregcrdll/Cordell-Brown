@@ -1,15 +1,172 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Domestic Violence Charge Evaluator</title>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SC DV Charge Evaluator</title>
   <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
 </head>
-<body class="bg-gradient-to-b from-gray-900 to-gray-800 text-white min-h-screen p-6">
-  <div class="max-w-6xl mx-auto px-6 sm:px-8 md:px-12 lg:px-16 xl:px-24">
-    <h1 class="text-4xl font-extrabold mb-8 text-center text-blue-400 tracking-tight">Domestic Violence Charge Evaluator</h1>
-    <!-- Truncated for brevity, but includes full HTML and script logic from canvas -->
+<body class="bg-gray-100 text-gray-900 min-h-screen p-4">
+  <div class="max-w-3xl mx-auto">
+    <h1 class="text-3xl font-bold text-center text-blue-700 mb-6">SC DV Charge Evaluator</h1>
+    <textarea id="incidentInput" class="w-full p-4 rounded shadow border border-gray-300 text-sm" rows="6" placeholder="Describe the domestic incident..."></textarea>
+    <div class="flex justify-between mt-4">
+      <button id="classifyBtn" class="bg-blue-600 text-white px-6 py-2 rounded hover:bg-blue-700">⚖️ Classify</button>
+      <button id="clearBtn" class="bg-gray-300 text-gray-800 px-4 py-2 rounded hover:bg-gray-400">🧹 Clear</button>
+      <button id="voiceBtn" class="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700">🎤 Speak</button>
+    </div>
+    <div id="resultBox" class="hidden mt-6 p-4 bg-white border border-gray-300 rounded shadow">
+      <h2 class="text-xl font-bold mb-2">🔍 Result</h2>
+      <p id="result" class="text-lg font-semibold text-blue-800"></p>
+      <div id="reasoning" class="mt-2 text-sm text-gray-700"></div>
+      <div id="statuteText" class="mt-4 text-xs text-gray-600 whitespace-pre-line"></div>
+    </div>
   </div>
+<script>
+const statutes = {
+  DV3rd: {
+    title: "Domestic Violence 3rd Degree",
+    citation: "§16-25-20(D)",
+    text: `§16-25-20(D): A person commits DV 3rd if they cause physical harm or offer/attempt to cause harm with apparent present ability, under circumstances reasonably creating fear of imminent peril.`
+  },
+  DV2nd: {
+    title: "Domestic Violence 2nd Degree",
+    citation: "§16-25-20(C)",
+    text: `§16-25-20(C): DV 2nd occurs if DV 3rd is committed with aggravating factors, or moderate bodily injury results.`
+  },
+  DV1st: {
+    title: "Domestic Violence 1st Degree",
+    citation: "§16-25-20(B)",
+    text: `§16-25-20(B): DV 1st involves great bodily injury or DV 2nd with severe aggravators such as firearm use, protection order violations, or prior convictions.`
+  },
+  DVHAN: {
+    title: "DV High and Aggravated Nature (DVHAN)",
+    citation: "§16-25-65",
+    text: `§16-25-65: DVHAN includes extreme indifference to life, great bodily injury, or fear of imminent death/great injury. Covers deadly weapons, strangulation, and emergency obstruction.`
+  }
+};
+
+const severityList = {
+  physical: ["slap", "pushed", "shoved", "small bruise", "red mark", "minor swelling"],
+  moderate: ["fracture", "dislocation", "stitches", "moderate disfigurement", "temporary loss of function", "loss of consciousness"],
+  great: ["gunshot wound", "stabbed", "skull fracture", "organ damage", "permanent disfigurement"],
+  extreme: ["burned alive", "strangled unconscious", "thrown from moving vehicle", "beaten with deadly weapon"]
+};
+
+const aggravators = [
+  { phrase: "protection order", match: "violation of a protection order" },
+  { phrase: "restraining order", match: "violation of a protection order" },
+  { phrase: "took phone", match: "interference with emergency communication" },
+  { phrase: "blocked phone", match: "interference with emergency communication" },
+  { phrase: "child present", match: "committed in front of a minor" },
+  { phrase: "minor saw", match: "committed in front of a minor" },
+  { phrase: "pregnant", match: "victim known to be pregnant" },
+  { phrase: "strangled", match: "impeded breathing" },
+  { phrase: "two priors", match: "prior DV convictions" },
+  { phrase: "used firearm", match: "firearm used" }
+];
+
+const threatKeywords = ["threaten to kill", "said i’ll kill", "going to kill", "i will shoot", "i'm gonna shoot"];
+const threatAbility = ["holding gun", "had knife", "armed", "pointed weapon", "wielding weapon", "near firearm", "standing next to gun"];
+
+function classifyDV() {
+  const input = document.getElementById("incidentInput").value.toLowerCase();
+  let result = statutes.DV3rd.title;
+  let cite = statutes.DV3rd.citation;
+  let text = statutes.DV3rd.text;
+  let reasons = [];
+  let score = 0;
+
+  const match = (keywords) => keywords.some(kw => input.includes(kw));
+
+  if (match(severityList.physical)) {
+    reasons.push("Detected physical harm consistent with DV 3rd.");
+    score = 1;
+  }
+  if (match(severityList.moderate)) {
+    reasons.push("Detected moderate bodily injury consistent with DV 2nd.");
+    result = statutes.DV2nd.title;
+    cite = statutes.DV2nd.citation;
+    text = statutes.DV2nd.text;
+    score = 2;
+  }
+  if (match(severityList.great)) {
+    reasons.push("Detected great bodily injury consistent with DV 1st.");
+    result = statutes.DV1st.title;
+    cite = statutes.DV1st.citation;
+    text = statutes.DV1st.text;
+    score = 3;
+  }
+  if (match(severityList.extreme)) {
+    reasons.push("Detected extreme indifference to human life consistent with DVHAN.");
+    result = statutes.DVHAN.title;
+    cite = statutes.DVHAN.citation;
+    text = statutes.DVHAN.text;
+    score = 4;
+  }
+
+  if (match(threatKeywords)) {
+    if (match(threatAbility)) {
+      reasons.push("Detected threat to kill with proximity to weapon — extreme indifference present.");
+      result = statutes.DVHAN.title;
+      cite = statutes.DVHAN.citation;
+      text = statutes.DVHAN.text;
+      score = 4;
+    } else {
+      reasons.push("Detected credible threat consistent with DV 1st under §16-25-20(A)(2)." );
+      result = statutes.DV1st.title;
+      cite = statutes.DV1st.citation;
+      text = statutes.DV1st.text;
+      score = Math.max(score, 3);
+    }
+  }
+
+  aggravators.forEach(factor => {
+    if (input.includes(factor.phrase)) {
+      reasons.push("Detected aggravating factor: " + factor.match);
+      if (score === 1) {
+        result = statutes.DV2nd.title;
+        cite = statutes.DV2nd.citation;
+        text = statutes.DV2nd.text;
+        score = 2;
+      } else if (score === 2 || score === 3) {
+        result = statutes.DV1st.title;
+        cite = statutes.DV1st.citation;
+        text = statutes.DV1st.text;
+        score = 3;
+      }
+    }
+  });
+
+  if (score === 0) {
+    reasons.push("No qualifying physical contact or credible threat detected. Defaulting to DV 3rd if household member condition is met.");
+  }
+
+  document.getElementById("result").innerText = result + " (" + cite + ")";
+  document.getElementById("reasoning").innerHTML = "<strong>Why this charge:</strong><br>" + reasons.join("<br>");
+  document.getElementById("statuteText").innerHTML = "<strong>Statute Reference:</strong><br>" + text;
+  document.getElementById("resultBox").classList.remove("hidden");
+}
+
+function clearForm() {
+  document.getElementById("incidentInput").value = "";
+  document.getElementById("resultBox").classList.add("hidden");
+}
+
+const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+if (SpeechRecognition) {
+  const recog = new SpeechRecognition();
+  recog.lang = "en-US";
+  recog.interimResults = false;
+  recog.maxAlternatives = 1;
+  document.getElementById("voiceBtn").onclick = () => recog.start();
+  recog.onresult = (event) => {
+    document.getElementById("incidentInput").value = event.results[0][0].transcript;
+  };
+}
+
+document.getElementById("classifyBtn").addEventListener("click", classifyDV);
+document.getElementById("clearBtn").addEventListener("click", clearForm);
+</script>
 </body>
 </html>
